@@ -1,0 +1,14 @@
+{
+  "name": "mi.io",
+  "version": "0.1",
+  "description": "xiaomi mifenday WebSocket API",
+  "homepage": "http://www.xiaomi.com",
+  "author": {
+    "name": "CUPDIR",
+    "email": "guillermo@learnboost.com"
+  }, 
+  "main": "Mi.js",
+  "scripts": {
+    "test": "make test"
+  }
+}
