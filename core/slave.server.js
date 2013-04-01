@@ -8,26 +8,10 @@
  	 http 	= require('http'),
  	 url 	= require('url'),
  	 redis 	= require("../lib/redis"),
- 	 io 	= require('../lib/socket.io').listen(9001),
- 	 //用户签到数据
- 	 SIGN_API_OPTIONS 	= {
- 	 					hostname:'127.0.0.1',
- 	 					port:8081,
- 	 					method:'GET',
- 	 					path:'/get/sign/index.string'
- 	 					},
- 	 //用户互动数据
- 	 USER_API_OPTIONS ={
- 	 					hostname:'127.0.0.1',
- 	 					port:8081,
- 	 					method:'GET',
- 	 					path:'/get/interactive/index.string'
- 	 					};	
-
+ 	 io 	= require('../lib/socket.io').listen(9003);
 var  client = queue = []; //用户推送队列 
 function MiFen(options){
 	this.flush();
-	this.pull();//拉取数据
 	this.options = options;
 	redis.debug_mode = false;
 	this.client  = redis.createClient(options.store.port,options.store.host);
@@ -131,7 +115,7 @@ MiFen.prototype.web = function(){
 			response.end();
 		}
 	});
-	web.listen(8080);
+	web.listen(8081);
 	return this;
 };
 //http 输出方式
@@ -178,42 +162,6 @@ MiFen.prototype.flush = function(){
 			 	}
 			 }
 	},500);
-};
-MiFen.prototype.pull = function(){
-	var self = this;
-	setInterval(function(){
-		console.log('拉取数据开始');
-		var req1 = http.request(SIGN_API_OPTIONS, function (res) {
-		  	console.log('SIGN_STATUS_HEADER_CODE: ' + res.statusCode);
-		  	res.setEncoding('utf8');
-  			res.on('data', function (chunk) {
-  				console.log('SIGN_STATUS_HEADER_DATA');
-  				var pull_sign_json = JSON.parse(chunk);
-  				for(i=0;i<pull_sign_json.length;i++){
-  					console.log('拉取签到数据'+pull_sign_json[i].id);
-  					self.get_user(pull_sign_json[i].id).sign = true;
-  					self.set_user(pull_sign_json[i]);
-  				}
-  				//合并
-  				console.log(client);
-  			})
-		});
-		req1.end();
-		var req2 = http.request(USER_API_OPTIONS, function (res) {
-  			console.log('USER_STATUS_HEADER_CODE: ' + res.statusCode);
-  			res.setEncoding('utf8');
-  			res.on('data', function (chunk) {
-  				console.log('USER_STATUS_HEADER_DATA');
-  				var pull_user_json = JSON.parse(chunk);
-  				for(i=0;i<pull_user_json.length;i++){
-  					console.log('拉取互动数据'+pull_user_json[i].id)
-  					self.set_user(pull_user_json[i]);
-  				}
-  				console.log(client);
-  			})
-		});	
-		req2.end();
-	},1000)
 };
 MiFen.prototype.get_user = function(user_id){
 	if(client.length){
@@ -266,25 +214,26 @@ MiFen.prototype.token = function(key){
 			
 		},
 		this.get = function(param1,param2){
-			var string = '';
+	
+			var pull_interactive = pull_sign =  new Array();
 			switch(param1){
 				case 'interactive': //互动
 					self.sort();
 					for(i =0;i<client.length;i++){
 						if(client[i].sign == false){
-							string += client[i].id+','; 
+							pull_interactive.push(client[i]);
 						}
 					}
-					return string.substr(0,string.length-1);
+					return JSON.stringify(pull_interactive);
 				break;
 				case 'sign':
 					for(i=0;i<client.length;i++){
 						if(client[i].sign == 'true'){
-							string += client[i].id+','; 
-							client[i].sign = false;
+							client[i].sign = true;
+							pull_sign.push(client[i]);
 						}
 					}
-					return string.substr(0,string.length-1);				
+					return JSON.stringify(pull_sign);	
 				break;
 				default:return '';
 			}
