@@ -7,18 +7,20 @@
  	 util 	= require('util'),
  	 http 	= require('http'),
  	 url 	= require('url'),
+ 	 syslog  = 	require('../lib/log4js'),
  	 redis 	= require("../lib/redis"),
  	 io 	= require('../lib/socket.io').listen(9003);
 var  client = queue = []; //用户推送队列 
 function MiFen(options){
+	this.logger();
 	this.flush();
 	this.options = options;
 	redis.debug_mode = false;
-	this.client  = redis.createClient(options.store.port,options.store.host);
-	this.client.on('connect',function(){
+	this.redis_client  = redis.createClient(options.store.port,options.store.host);
+	this.redis_client.on('connect',function(){
 		console.log('存储连接正常')
 	});
-	this.client.on('error',function(err){
+	this.redis_client.on('error',function(err){
 		console.log('Redis连接异常'+err);
 		process.exit(1);
 	})
@@ -26,14 +28,37 @@ function MiFen(options){
 };
 util.inherits(MiFen, events.EventEmitter); 
 MiFen.prototype.s_reset = function(arr){
-	console.log(arr.length);
 	if(arr.length >= 4){
 		for(i=0;i<arr.length;i++){
 			this.get_user(arr[i].id).count = '0';
 		}
 		return arr;
 	}
-}
+};
+MiFen.prototype.logger = function(){
+  this.sign_log  = syslog.getLogger('3g-user-sign-log');
+  this.interactive_log = syslog.getLogger('3g-user-interactive-log');
+  var log_path = __dirname.substr(0,__dirname.length-4);
+  syslog.configure({
+        appenders: [
+            {
+                type: 'console'
+            },
+            {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/3g-sign.log', 
+                category: '3g-user-sign-log'
+            },
+             {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/3g-interactive.log', 
+                category: '3g-user-interactive-log'
+            } 
+        ]
+    });
+};
 MiFen.prototype.start = function(){
 	var self = this;
 	io.sockets.on('connection',function(socket){
@@ -155,7 +180,7 @@ MiFen.prototype.flush = function(){
 			 	if(self.get_user(client[i].id).sign == false){
 			 		if(self.get_user(client[i].id).count > 0){
 			 			console.log('清空互动数据')
-			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 20) < 0) ? 0 :self.get_user(client[i].id).count-20;
+			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 5) < 0) ? 0 :self.get_user(client[i].id).count-5;
 			 			console.log(client[i].id + '-' +client[i].count);			 			
 			 		}
 
@@ -190,7 +215,7 @@ MiFen.prototype.token = function(key){
 				var obj = {};
 				obj.id = key;
 				obj.count = result[key];
-				obj.sign = 'true';
+				obj.sign = true;
 				client.push(obj);
 			}
 	};
@@ -204,12 +229,14 @@ MiFen.prototype.token = function(key){
 		this.user = function(count,user_id){
 				if(typeof(self.get_user(user_id)) == 'object'){
 					console.log(user_id+'正在互动'+count);
+					self.interactive_log.info(user_id+'|'+count)
 					self.get_user(user_id).count = count;
 					self.get_user(user_id).sign = false;
 					return {status:'success',time:self.format('ssS'),user:{count:self.get_user(user_id).count,user_id:user_id}};
 
 				}else{
-					return {status:'fail',time:self.format('ssS')};
+					self.set_user({id:user_id,count:count,sign:false});
+					return {status:'success',time:self.format('ssS'),user:{count:count,user_id:user_id}};
 				}
 			
 		},
@@ -228,11 +255,11 @@ MiFen.prototype.token = function(key){
 				break;
 				case 'sign':
 					for(i=0;i<client.length;i++){
-						if(client[i].sign == 'true'){
-							client[i].sign = true;
+						if(client[i].sign == true){
 							pull_sign.push(client[i]);
 						}
 					}
+					
 					return JSON.stringify(pull_sign);	
 				break;
 				default:return '';
@@ -242,8 +269,9 @@ MiFen.prototype.token = function(key){
 		this.sign = function(sign_count,sign_user_id){
 			if(self.get_user(sign_user_id)  ==  false){
 				console.log(sign_user_id+'签到成功');
-				self.set_user({id:sign_user_id,count:sign_count,sign:'true'});
-				self.client.hset("user_sign", sign_user_id,sign_count, self.client.print);
+				self.sign_log.info(sign_user_id);
+				self.set_user({id:sign_user_id,count:sign_count,sign:true});
+				self.redis_client.hset("user_sign", sign_user_id,sign_count, self.redis_client.print);
 				return {status:'success',time:self.format('ssS'),user:sign_user_id};
 			}else{
 				return {status:'fail auth sign',time:self.format('ssS')};
@@ -251,7 +279,7 @@ MiFen.prototype.token = function(key){
 		},
 		//重新导入签到用户
 		this.sos= function(){
-			self.client.hgetall('user_sign',function(err,result){
+			self.redis_client.hgetall('user_sign',function(err,result){
 				reset(result);
 			});
 			return {status:'success',time:self.format('ssS')}

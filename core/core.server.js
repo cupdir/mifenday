@@ -7,8 +7,10 @@
  	 util 	= require('util'),
  	 http 	= require('http'),
  	 url 	= require('url'),
+ 	 syslog  = 	require('../lib/log4js'),
  	 redis 	= require("../lib/redis"),
  	 io 	= require('../lib/socket.io').listen(9001),
+ 	 WEB_PORT_LISTEN = 8080,
  	 //用户签到数据
  	 SIGN_API_OPTIONS 	= {
  	 					hostname:'127.0.0.1',
@@ -26,8 +28,9 @@
 
 var  client = queue = []; //用户推送队列 
 function MiFen(options){
-	this.flush();
+	this.logger();
 	this.pull();//拉取数据
+	this.flush();
 	this.options = options;
 	redis.debug_mode = false;
 	this.client  = redis.createClient(options.store.port,options.store.host);
@@ -49,7 +52,45 @@ MiFen.prototype.s_reset = function(arr){
 		}
 		return arr;
 	}
-}
+};
+MiFen.prototype.logger = function(){
+  this.sign_log  = syslog.getLogger('user-sign-log');
+  this.interactive_log = syslog.getLogger('user-interactive-log');
+  this.pull_sign_log = syslog.getLogger('3g-pull-user-sign-log');
+  this.pull_user_interactive_log = syslog.getLogger('3g-pull-user-interactive-log');
+  var log_path = __dirname.substr(0,__dirname.length-4);
+  syslog.configure({
+        appenders: [
+            {
+                type: 'console'
+            },
+            {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/sign.log', 
+                category: 'user-sign-log'
+            },
+             {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/interactive.log', 
+                category: 'user-interactive-log'
+            } ,
+             {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/3g-pull-sign.log', 
+                category: '3g-pull-user-sign-log'
+            } ,
+             {   
+                type: 'dateFile', 
+                absolute:true,
+                filename: log_path+'logs/3g-pull-interactive.log', 
+                category: '3g-pull-user-interactive-log'
+            } 
+        ]
+    });
+};
 MiFen.prototype.start = function(){
 	var self = this;
 	io.sockets.on('connection',function(socket){
@@ -131,7 +172,7 @@ MiFen.prototype.web = function(){
 			response.end();
 		}
 	});
-	web.listen(8080);
+	web.listen(WEB_PORT_LISTEN);
 	return this;
 };
 //http 输出方式
@@ -171,7 +212,7 @@ MiFen.prototype.flush = function(){
 			 	if(self.get_user(client[i].id).sign == false){
 			 		if(self.get_user(client[i].id).count > 0){
 			 			console.log('清空互动数据')
-			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 20) < 0) ? 0 :self.get_user(client[i].id).count-20;
+			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 5) < 0) ? 0 :self.get_user(client[i].id).count-5;
 			 			console.log(client[i].id + '-' +client[i].count);			 			
 			 		}
 
@@ -184,34 +225,42 @@ MiFen.prototype.pull = function(){
 	setInterval(function(){
 		console.log('拉取数据开始');
 		var req1 = http.request(SIGN_API_OPTIONS, function (res) {
-		  	console.log('SIGN_STATUS_HEADER_CODE: ' + res.statusCode);
+		  	//console.log('SIGN_STATUS_HEADER_CODE: ' + res.statusCode);
 		  	res.setEncoding('utf8');
   			res.on('data', function (chunk) {
-  				console.log('SIGN_STATUS_HEADER_DATA');
+  				//console.log('SIGN_STATUS_HEADER_DATA');
   				var pull_sign_json = JSON.parse(chunk);
   				for(i=0;i<pull_sign_json.length;i++){
   					console.log('拉取签到数据'+pull_sign_json[i].id);
-  					self.get_user(pull_sign_json[i].id).sign = true;
-  					self.set_user(pull_sign_json[i]);
+
+  					console.log(pull_sign_json);
+  					if(self.get_user(pull_sign_json[i].id) == false){
+  						self.pull_sign_log.info(pull_sign_json[i].id);
+  						self.sign_log.info(pull_sign_json[i].id);
+  						self.set_user(pull_sign_json[i]);
+  					}
   				}
   				//合并
-  				console.log(client);
+  				//console.log(client);
   			})
 		});
+		req1.on('error',function(err){})
 		req1.end();
 		var req2 = http.request(USER_API_OPTIONS, function (res) {
-  			console.log('USER_STATUS_HEADER_CODE: ' + res.statusCode);
+  			//console.log('USER_STATUS_HEADER_CODE: ' + res.statusCode);
   			res.setEncoding('utf8');
   			res.on('data', function (chunk) {
-  				console.log('USER_STATUS_HEADER_DATA');
+  				//console.log('USER_STATUS_HEADER_DATA');
   				var pull_user_json = JSON.parse(chunk);
   				for(i=0;i<pull_user_json.length;i++){
-  					console.log('拉取互动数据'+pull_user_json[i].id)
+  					console.log('拉取互动数据'+pull_user_json[i].id);
+  					self.pull_user_interactive_log.info(pull_user_json[i].id+'|'+pull_user_json[i].count);
   					self.set_user(pull_user_json[i]);
   				}
-  				console.log(client);
+  				//console.log(client);
   			})
 		});	
+		req2.on('error',function(err){})
 		req2.end();
 	},1000)
 };
@@ -242,7 +291,7 @@ MiFen.prototype.token = function(key){
 				var obj = {};
 				obj.id = key;
 				obj.count = result[key];
-				obj.sign = 'true';
+				obj.sign = true;
 				client.push(obj);
 			}
 	};
@@ -256,12 +305,14 @@ MiFen.prototype.token = function(key){
 		this.user = function(count,user_id){
 				if(typeof(self.get_user(user_id)) == 'object'){
 					console.log(user_id+'正在互动'+count);
+					self.interactive_log.info(user_id+'|'+count)
 					self.get_user(user_id).count = count;
 					self.get_user(user_id).sign = false;
 					return {status:'success',time:self.format('ssS'),user:{count:self.get_user(user_id).count,user_id:user_id}};
 
 				}else{
-					return {status:'fail',time:self.format('ssS')};
+					self.set_user({id:user_id,count:count,sign:false});
+					return {status:'success',time:self.format('ssS'),user:{count:count,user_id:user_id}};
 				}
 			
 		},
@@ -278,8 +329,9 @@ MiFen.prototype.token = function(key){
 					return string.substr(0,string.length-1);
 				break;
 				case 'sign':
+					console.log('大屏幕拉取签到用户');
 					for(i=0;i<client.length;i++){
-						if(client[i].sign == 'true'){
+						if(client[i].sign == true){
 							string += client[i].id+','; 
 							client[i].sign = false;
 						}
@@ -293,7 +345,8 @@ MiFen.prototype.token = function(key){
 		this.sign = function(sign_count,sign_user_id){
 			if(self.get_user(sign_user_id)  ==  false){
 				console.log(sign_user_id+'签到成功');
-				self.set_user({id:sign_user_id,count:sign_count,sign:'true'});
+				self.sign_log.info(sign_user_id);
+				self.set_user({id:sign_user_id,count:sign_count,sign:true});
 				self.client.hset("user_sign", sign_user_id,sign_count, self.client.print);
 				return {status:'success',time:self.format('ssS'),user:sign_user_id};
 			}else{
