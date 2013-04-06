@@ -211,21 +211,19 @@ MiFen.prototype.pull = function(){
   			//console.log('USER_STATUS_HEADER_CODE: ' + res.statusCode);
   			res.setEncoding('utf8');
   			res.on('data', function (chunk) {
-  				//console.log('USER_STATUS_HEADER_DATA');
+  				//console.log('USER_STATUS_HEADER_DATA')
   				var pull_user_json = JSON.parse(chunk);
   				for(i=0;i<pull_user_json.length;i++){
-					//if(self.get_user(pull_user_json[i].id).sign == true){
   						console.log('拉取互动数据'+pull_user_json[i].id);
   						self.pull_user_interactive_log.info(pull_user_json[i].id+'|'+pull_user_json[i].count);
   						pull_user_json[i].sign = false;
 						self.set_user(pull_user_json[i]);
-					//}
   				}
   				//console.log(client);
   			})
 		});	
 		req2.on('error',function(err){
-			console.log(err)
+			//console.log(err)
 		})
 		req2.end();
 	},1000)
@@ -383,3 +381,8 @@ MiFen.prototype.format=function(fmt) {
 exports.mifenday = function(options){
 	return new MiFen(options);
 }
+process.on('uncaughtException', function (err) {
+    console.log('+--------------------------------------+');
+    //console.log(err);
+    console.log('+--------------------------------------+');
+});
