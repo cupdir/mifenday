@@ -30,7 +30,6 @@ var  client = queue = []; //用户推送队列
 function MiFen(options){
 	this.logger();
 	this.pull();//拉取数据
-	this.flush();
 	this.options = options;
 	redis.debug_mode = false;
 	this.client  = redis.createClient(options.store.port,options.store.host);
@@ -219,32 +218,10 @@ MiFen.prototype.flush = function(){
 			 }
 	},500);
 };
+//2秒清空互动数据
 MiFen.prototype.pull = function(){
 	var self = this;
 	setInterval(function(){
-		console.log('拉取数据开始');
-		var req1 = http.request(SIGN_API_OPTIONS, function (res) {
-		  	//console.log('SIGN_STATUS_HEADER_CODE: ' + res.statusCode);
-		  	res.setEncoding('utf8');
-  			res.on('data', function (chunk) {
-  				//console.log('SIGN_STATUS_HEADER_DATA');
-  				var pull_sign_json = JSON.parse(chunk);
-  				for(i=0;i<pull_sign_json.length;i++){
-  					console.log('拉取签到数据'+pull_sign_json[i].id);
-
-  					console.log(pull_sign_json);
-  					if(self.get_user(pull_sign_json[i].id) == false){
-  						self.pull_sign_log.info(pull_sign_json[i].id);
-  						self.sign_log.info(pull_sign_json[i].id);
-  						self.set_user(pull_sign_json[i]);
-  					}
-  				}
-  				//合并
-  				//console.log(client);
-  			})
-		});
-		req1.on('error',function(err){})
-		req1.end();
 		var req2 = http.request(USER_API_OPTIONS, function (res) {
   			//console.log('USER_STATUS_HEADER_CODE: ' + res.statusCode);
   			res.setEncoding('utf8');
@@ -252,14 +229,19 @@ MiFen.prototype.pull = function(){
   				//console.log('USER_STATUS_HEADER_DATA');
   				var pull_user_json = JSON.parse(chunk);
   				for(i=0;i<pull_user_json.length;i++){
-  					console.log('拉取互动数据'+pull_user_json[i].id);
-  					self.pull_user_interactive_log.info(pull_user_json[i].id+'|'+pull_user_json[i].count);
-  					self.set_user(pull_user_json[i]);
+					//if(self.get_user(pull_user_json[i].id).sign == true){
+  						console.log('拉取互动数据'+pull_user_json[i].id);
+  						self.pull_user_interactive_log.info(pull_user_json[i].id+'|'+pull_user_json[i].count);
+  						pull_user_json[i].sign = false;
+						self.set_user(pull_user_json[i]);
+					//}
   				}
   				//console.log(client);
   			})
 		});	
-		req2.on('error',function(err){})
+		req2.on('error',function(err){
+			console.log(err)
+		})
 		req2.end();
 	},1000)
 };
