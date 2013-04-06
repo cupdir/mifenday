@@ -212,10 +212,9 @@ MiFen.prototype.flush = function(){
 			 	if(self.get_user(client[i].id).sign == false){
 			 		if(self.get_user(client[i].id).count > 0){
 			 			console.log('清空互动数据')
-			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 5) < 0) ? 0 :self.get_user(client[i].id).count-5;
+			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 20) < 0) ? 0 :self.get_user(client[i].id).count-20;
 			 			console.log(client[i].id + '-' +client[i].count);			 			
 			 		}
-
 			 	}
 			 }
 	},500);
@@ -307,7 +306,7 @@ MiFen.prototype.token = function(key){
 					console.log(user_id+'正在互动'+count);
 					self.interactive_log.info(user_id+'|'+count)
 					self.get_user(user_id).count = count;
-					self.get_user(user_id).sign = false;
+					//self.get_user(user_id).sign = false;
 					return {status:'success',time:self.format('ssS'),user:{count:self.get_user(user_id).count,user_id:user_id}};
 
 				}else{
@@ -324,6 +323,7 @@ MiFen.prototype.token = function(key){
 					for(i =0;i<client.length;i++){
 						if(client[i].sign == false){
 							string += client[i].id+','; 
+							client.splice(i);
 						}
 					}
 					return string.substr(0,string.length-1);
