@@ -13,15 +13,15 @@
  	 WEB_PORT_LISTEN = 8080,
  	 //用户签到数据
  	 SIGN_API_OPTIONS 	= {
- 	 					hostname:'127.0.0.1',
- 	 					port:8081,
+ 	 					hostname:'49.m.xiaomi.com',
+ 	 					port:80,
  	 					method:'GET',
  	 					path:'/get/sign/index.string'
  	 					},
  	 //用户互动数据
  	 USER_API_OPTIONS ={
- 	 					hostname:'127.0.0.1',
- 	 					port:8081,
+ 	 					hostname:'49.m.xiaomi.com',
+ 	 					port:80,
  	 					method:'GET',
  	 					path:'/get/interactive/index.string'
  	 					};	
@@ -203,22 +203,7 @@ MiFen.prototype.output = function(obj,res,output){
 
 	}
 };
-//2秒清空互动数据
-MiFen.prototype.flush = function(){
-	var self = this;
-	setInterval(function(){
-			 for(i=0;i<client.length;i++){
-			 	if(self.get_user(client[i].id).sign == false){
-			 		if(self.get_user(client[i].id).count > 0){
-			 			console.log('清空互动数据')
-			 			self.get_user(client[i].id).count  = ((self.get_user(client[i].id).count - 20) < 0) ? 0 :self.get_user(client[i].id).count-20;
-			 			console.log(client[i].id + '-' +client[i].count);			 			
-			 		}
-			 	}
-			 }
-	},500);
-};
-//2秒清空互动数据
+
 MiFen.prototype.pull = function(){
 	var self = this;
 	setInterval(function(){
