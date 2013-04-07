@@ -188,8 +188,8 @@ MiFen.prototype.output = function(obj,res,output){
 				res.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
 				res.end(obj);
 			}else{
-				res.writeHead(404, {'Content-Type': 'text/plain; charset=utf-8'});
-				res.end();
+				res.writeHead(200, {'Content-Type': 'text/plain; charset=utf-8'});
+				res.end('');
 			}
 		break;
 		case 'xml':
